@@ -1,10 +1,22 @@
-import pg from "pg";
+import jwt from "jsonwebtoken";
 
-export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
-});
+export function requireJWT(req, res, next) {
+  const hdr = req.headers.authorization || "";
+  const token = hdr.startsWith("Bearer ") ? hdr.slice(7) : null;
+  if (!token) return res.status(401).json({ error: "Missing token" });
 
-export async function q(text, params) {
-  return pool.query(text, params);
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    return next();
+  } catch {
+    return res.status(401).json({ error: "Invalid token" });
+  }
+}
+
+export function requireManager(req, res, next) {
+  const r = req.user?.role;
+  if (r !== "manager" && r !== "admin") {
+    return res.status(403).json({ error: "Manager access required" });
+  }
+  next();
 }
